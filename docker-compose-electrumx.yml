@@ -1,0 +1,66 @@
+version: '2.1'
+
+services:
+  megacoind:
+    build:
+      context: ./docker-megacoind
+      dockerfile: ./Dockerfile
+    image: megacoind
+    container_name: megacoin-rpc
+    command:
+      -externalip=51.15.121.233
+      -whitebind=172.21.0.11:7951
+      -rpcbind=172.21.0.11
+      -maxconnections=64
+      -rpcuser=mec-rpc-user
+      -rpcpassword=mec-rpc-pwd
+    restart: always
+    networks:
+      megacoin-net:
+        ipv4_address: 172.21.0.11
+    ports:
+      - 7951:7951
+    expose:
+      - 7951
+      - 7952
+    volumes:
+      - /home/megacoin:/data
+    healthcheck:
+      test: "megacoin-cli -datadir=/data -conf=/data/megacoin.conf -rpcconnect=172.21.0.11 -rpcuser=mec-rpc-user -rpcpassword=mec-rpc-pwd -rpcport=7952 mnsync status | grep MASTERNODE_SYNC_FINISHED"
+      interval: 2m
+      timeout: 1m
+      retries: 60
+
+  electrumx:
+    image: dalijolijo/electrumx:mec
+    container_name: electrumx
+    restart: always
+    networks:
+      megacoin-net:
+        ipv4_address: 172.21.0.12
+    ports:
+      - 8000:8000
+      - 50006:50006
+    expose:
+      - 8000
+      - 50006
+    volumes:
+      - /home/megacoin:/data
+    environment:
+      DAEMON_URL: "http://mec-rpc-user:mec-rpc-pwd@172.21.0.11:7952"
+      COIN: "Megacoin"
+      COST_SOFT_LIMIT: 0
+      COST_HARD_LIMIT: 0
+      CACHE_MB: 2048
+    depends_on:
+      megacoind:
+        condition: service_healthy
+
+networks:
+  megacoin-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/24
+
